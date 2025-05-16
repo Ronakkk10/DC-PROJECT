@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package logger;
+
+service LogService {
+  rpc LogEvent (LogRequest) returns (LogResponse);
+}
+
+message LogRequest {
+  string userId = 1;
+  string eventType = 2;
+  Details details = 3;
+  string timestamp = 4;
+}
+
+message LogResponse {
+  string status = 1;
+}
+
+message Details {
+  string productId = 1;
+  string productName = 2;
+}

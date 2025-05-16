@@ -1,0 +1,121 @@
+services:
+  # Database services first (most fundamental dependencies)
+  mongo:
+    image: mongo:6
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Workers and middleware next
+  log_worker:
+    build:
+      context: ./backend
+    container_name: log-worker
+    command: node log_worker.js
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "50051:50051"
+    networks:
+      - backend_net
+    restart: on-failure
+
+  # Application backends next
+  backend1:
+    build:
+      context: ./backend
+    container_name: backend1
+    command: node server.js
+    env_file: ./backend/.env.5000
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    networks:
+      - backend_net
+
+  backend2:
+    build:
+      context: ./backend
+    container_name: backend2
+    command: node server.js
+    env_file: ./backend/.env.5001
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "5001:5001"
+    networks:
+      - backend_net
+
+  backend3:
+    build:
+      context: ./backend
+    container_name: backend3
+    command: node server.js
+    env_file: ./backend/.env.5002
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "5002:5002"
+    networks:
+      - backend_net
+
+  # Frontend/proxies last
+  haproxy:
+    image: haproxy:latest
+    container_name: haproxy
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    ports:
+      - "8080:8080"
+      - "8404:8404"
+    depends_on:
+      - backend1
+      - backend2
+      - backend3
+    networks:
+      - backend_net
+
+volumes:
+  mongo_data:
+
+networks:
+  backend_net:
+    driver: bridge
